@@ -1,12 +1,25 @@
-FROM progrium/busybox
+FROM golang:1.5.3-alpine
 
-RUN opkg-install ca-certificates
+ENV CONCOURSE_CODE_PATH ${GOPATH}/src/github.com/concourse/s3-resource
 
-# satisfy go crypto/x509
-RUN for cert in `ls -1 /etc/ssl/certs/*.crt | grep -v /etc/ssl/certs/ca-certificates.crt`; \
-      do cat "$cert" >> /etc/ssl/certs/ca-certificates.crt; \
-    done
+RUN apk add --update git bash \
+  && rm -rf /var/cache/apk/*
 
-ADD built-check /opt/resource/check
-ADD built-in /opt/resource/in
-ADD built-out /opt/resource/out
+ADD . /code
+
+RUN mkdir -p $(dirname ${CONCOURSE_CODE_PATH}) \
+    && ln -s /code ${CONCOURSE_CODE_PATH}
+
+RUN cd ${CONCOURSE_CODE_PATH} \
+  && go get -v -d ./...
+
+RUN cd ${CONCOURSE_CODE_PATH} \
+  && ./scripts/build
+
+RUN cd ${CONCOURSE_CODE_PATH} \
+  && mkdir -p /opt/resource \
+  && cp built-check /opt/resource/check \
+  && cp built-in /opt/resource/in \
+  && cp built-out /opt/resource/out
+
+RUN rm -rf ${GOPATH} ${GOROOT} /usr/local/go /code
